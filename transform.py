@@ -173,7 +173,7 @@ def _prepare_publish_repo(target: str) -> Path:
     return repo_tmp
 
 
-def build(target: str, cfg: dict) -> None:
+def build(target: str, cfg: dict, skip_ci: bool) -> None:
     tcfg = cfg.get(target, {})
     remove_paths = set(tcfg.get("remove_paths", []))
 
@@ -233,13 +233,16 @@ def build(target: str, cfg: dict) -> None:
                     shutil.copy2(fpath, dest)
 
             subprocess.run(["git", "add", "-A"], cwd=repo_tmp, check=True)
+            commit_message = f"chore: generate {target}"
+            if skip_ci:
+                commit_message += " [skip ci]"
             subprocess.run(
                 [
                     "git",
                     "commit",
                     "--allow-empty",
                     "-m",
-                    f"chore: generate {target} [skip ci]",
+                    commit_message,
                 ],
                 cwd=repo_tmp,
                 check=True,
@@ -260,10 +263,15 @@ def main() -> None:
         description="Generiert solution/startercode-Branches."
     )
     parser.add_argument("--target", choices=["solution", "startercode"], required=True)
+    parser.add_argument(
+        "--no-skip-ci",
+        action="store_true",
+        help="Fuegt kein '[skip ci]' zur Commit-Message hinzu.",
+    )
     args = parser.parse_args()
 
     cfg = yaml.safe_load((CI_DIR / "config.yml").read_text(encoding="utf-8"))
-    build(args.target, cfg)
+    build(args.target, cfg, skip_ci=not args.no_skip_ci)
     print(f"✓ Branch '{args.target}' erfolgreich erzeugt und gepusht.")
 
 

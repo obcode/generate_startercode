@@ -51,6 +51,8 @@ publish-branches:
       curl -s https://github.com/obcode/generate_startercode/raw/refs/heads/main/transform.py -o /tmp/transform.py
       for TARGET in solution startercode; do
         python /tmp/transform.py --target "$TARGET"
+        # Optional ohne [skip ci] in der Commit-Message:
+        # python /tmp/transform.py --target "$TARGET" --no-skip-ci
       done
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
