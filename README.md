@@ -51,6 +51,8 @@ publish-branches:
       curl -s https://github.com/obcode/generate_startercode/raw/refs/heads/main/transform.py -o /tmp/transform.py
       for TARGET in solution startercode; do
         python /tmp/transform.py --target "$TARGET"
+        # Optional eigene Config-Datei verwenden:
+        # python /tmp/transform.py --target "$TARGET" --config .gitlab/ci/config.yml
         # Optional ohne [skip ci] in der Commit-Message:
         # python /tmp/transform.py --target "$TARGET" --no-skip-ci
       done
@@ -97,6 +99,12 @@ startercode:
       remove_line_containing:
         - "include:"
         - ".gitlab/ci/teacher.yml"
+```
+
+Optional kannst du den Config-Pfad auch explizit beim Aufruf setzen:
+
+```bash
+python /tmp/transform.py --target startercode --config .gitlab/ci/config.yml
 ```
 
 ### 3. Marker im Code

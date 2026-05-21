@@ -5,6 +5,7 @@ Generiert solution- und startercode-Branches aus main.
 Verwendung:
   python .gitlab/ci/transform.py --target solution
   python .gitlab/ci/transform.py --target startercode
+    python .gitlab/ci/transform.py --target startercode --config /pfad/zu/config.yml
 
 Marker im Quellcode
 -------------------
@@ -264,13 +265,19 @@ def main() -> None:
     )
     parser.add_argument("--target", choices=["solution", "startercode"], required=True)
     parser.add_argument(
+        "--config",
+        default=str(CI_DIR / "config.yml"),
+        help="Pfad zur YAML-Konfiguration (Default: .gitlab/ci/config.yml).",
+    )
+    parser.add_argument(
         "--no-skip-ci",
         action="store_true",
         help="Fuegt kein '[skip ci]' zur Commit-Message hinzu.",
     )
     args = parser.parse_args()
 
-    cfg = yaml.safe_load((CI_DIR / "config.yml").read_text(encoding="utf-8"))
+    config_path = Path(args.config)
+    cfg = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     build(args.target, cfg, skip_ci=not args.no_skip_ci)
     print(f"✓ Branch '{args.target}' erfolgreich erzeugt und gepusht.")
 
