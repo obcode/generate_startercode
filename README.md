@@ -50,11 +50,11 @@ publish-branches:
     - |
       curl -s https://github.com/obcode/generate_startercode/raw/refs/heads/main/transform.py -o /tmp/transform.py
       for TARGET in solution startercode; do
-        python /tmp/transform.py --target "$TARGET"
+        python /tmp/transform.py --target "$TARGET" --repo-root "$CI_PROJECT_DIR"
         # Optional eigene Config-Datei verwenden:
-        # python /tmp/transform.py --target "$TARGET" --config .gitlab/ci/config.yml
+        # python /tmp/transform.py --target "$TARGET" --repo-root "$CI_PROJECT_DIR" --config .gitlab/ci/config.yml
         # Optional ohne [skip ci] in der Commit-Message:
-        # python /tmp/transform.py --target "$TARGET" --no-skip-ci
+        # python /tmp/transform.py --target "$TARGET" --repo-root "$CI_PROJECT_DIR" --no-skip-ci
       done
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
@@ -101,10 +101,12 @@ startercode:
         - ".gitlab/ci/teacher.yml"
 ```
 
-Optional kannst du den Config-Pfad auch explizit beim Aufruf setzen:
+Optional kannst du den Config-Pfad auch explizit beim Aufruf setzen.
+Relative Config-Pfade werden gegen das angegebene Repo-Root aufgelöst
+(Default für `--repo-root`: aktuelles Arbeitsverzeichnis):
 
 ```bash
-python /tmp/transform.py --target startercode --config .gitlab/ci/config.yml
+python /tmp/transform.py --target startercode --repo-root /pfad/zum/repo --config .gitlab/ci/config.yml
 ```
 
 ### 3. Marker im Code

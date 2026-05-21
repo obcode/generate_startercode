@@ -5,7 +5,8 @@ Generiert solution- und startercode-Branches aus main.
 Verwendung:
   python .gitlab/ci/transform.py --target solution
   python .gitlab/ci/transform.py --target startercode
-    python .gitlab/ci/transform.py --target startercode --config /pfad/zu/config.yml
+    python .gitlab/ci/transform.py --target startercode --config .gitlab/ci/config.yml
+    python /tmp/transform.py --target startercode --repo-root /pfad/zum/repo
 
 Marker im Quellcode
 -------------------
@@ -32,9 +33,6 @@ import tempfile
 from pathlib import Path
 
 import yaml  # type: ignore
-
-ROOT = Path(__file__).resolve().parent.parent
-CI_DIR = ROOT / ".gitlab" / "ci"
 
 RX_BEGIN = re.compile(r"^(\s*)(?:#|//)\s*SOLUTION_BEGIN(?:\s+(.+?))?\s*$")
 RX_END = re.compile(r"^\s*(?:#|//)\s*SOLUTION_END\s*$")
@@ -63,15 +61,15 @@ TEXT_SUFFIXES = {
 }
 
 
-def git_tracked_files() -> list[Path]:
+def git_tracked_files(repo_root: Path) -> list[Path]:
     """Gibt alle von Git getrackten Dateien zurück (keine gitignorierten Dateien)."""
     result = subprocess.run(
         ["git", "ls-files", "--cached"],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=repo_root,
     )
-    return [ROOT / p for p in result.stdout.splitlines() if p]
+    return [repo_root / p for p in result.stdout.splitlines() if p]
 
 
 def transform_source(text: str, target: str) -> str:
@@ -149,17 +147,20 @@ def _git_config_value(key: str, cwd: Path) -> str | None:
     return value or None
 
 
-def _prepare_publish_repo(target: str) -> Path:
+def _prepare_publish_repo(target: str, repo_root: Path) -> Path:
     repo_tmp = Path(tempfile.mkdtemp(prefix=f"transform_repo_{target}_"))
     origin_url = subprocess.run(
         ["git", "remote", "get-url", "origin"],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=repo_root,
         check=True,
     ).stdout.strip()
 
-    subprocess.run(["git", "clone", "--quiet", str(ROOT), str(repo_tmp)], check=True)
+    subprocess.run(
+        ["git", "clone", "--quiet", str(repo_root), str(repo_tmp)],
+        check=True,
+    )
     subprocess.run(
         ["git", "remote", "set-url", "origin", origin_url],
         cwd=repo_tmp,
@@ -167,26 +168,26 @@ def _prepare_publish_repo(target: str) -> Path:
     )
 
     for key in ("user.email", "user.name"):
-        value = _git_config_value(key, ROOT)
+        value = _git_config_value(key, repo_root)
         if value is not None:
             subprocess.run(["git", "config", key, value], cwd=repo_tmp, check=True)
 
     return repo_tmp
 
 
-def build(target: str, cfg: dict, skip_ci: bool) -> None:
+def build(target: str, cfg: dict, skip_ci: bool, repo_root: Path) -> None:
     tcfg = cfg.get(target, {})
     remove_paths = set(tcfg.get("remove_paths", []))
 
     # Nur git-tracked Dateien transformieren – gitignorierte Verzeichnisse
     # (.uv-cache, .venv, __pycache__ etc.) werden automatisch ausgelassen.
-    tracked = git_tracked_files()
+    tracked = git_tracked_files(repo_root)
 
     # tmp-Verzeichnis AUSSERHALB des Repos → kein rekursives rglob-Problem
     tmp = Path(tempfile.mkdtemp(prefix=f"transform_{target}_"))
     try:
         for fpath in tracked:
-            rel = fpath.relative_to(ROOT)
+            rel = fpath.relative_to(repo_root)
             # .gitlab/ci selbst nicht in den Branch kopieren
             if rel.parts[0:2] == (".gitlab", "ci"):
                 continue
@@ -202,7 +203,7 @@ def build(target: str, cfg: dict, skip_ci: bool) -> None:
 
         apply_patch_files(tcfg.get("patch_files", {}), tmp)
 
-        repo_tmp = _prepare_publish_repo(target)
+        repo_tmp = _prepare_publish_repo(target, repo_root)
         try:
             orphan = f"_gen_{target}"
             subprocess.run(
@@ -265,8 +266,13 @@ def main() -> None:
     )
     parser.add_argument("--target", choices=["solution", "startercode"], required=True)
     parser.add_argument(
+        "--repo-root",
+        default=str(Path.cwd()),
+        help="Pfad zum Repository-Root (Default: aktuelles Arbeitsverzeichnis).",
+    )
+    parser.add_argument(
         "--config",
-        default=str(CI_DIR / "config.yml"),
+        default=".gitlab/ci/config.yml",
         help="Pfad zur YAML-Konfiguration (Default: .gitlab/ci/config.yml).",
     )
     parser.add_argument(
@@ -276,9 +282,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    repo_root = Path(args.repo_root).resolve()
     config_path = Path(args.config)
+    if not config_path.is_absolute():
+        config_path = repo_root / config_path
     cfg = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    build(args.target, cfg, skip_ci=not args.no_skip_ci)
+    build(args.target, cfg, skip_ci=not args.no_skip_ci, repo_root=repo_root)
     print(f"✓ Branch '{args.target}' erfolgreich erzeugt und gepusht.")
 
 
