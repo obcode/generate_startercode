@@ -17,8 +17,15 @@ from typing import Any
 import gitlab  # type: ignore
 
 
+VERSION_ENV_VAR = "GENERATE_STARTERCODE_VERSION"
+
+
 def _resolve_version() -> str:
-    """Liest die Version aus installierten Metadaten oder pyproject.toml."""
+    """Liest die Version aus CI, Paket-Metadaten oder pyproject.toml."""
+    env_version = os.environ.get(VERSION_ENV_VAR, "").strip()
+    if env_version:
+        return env_version.removeprefix("v")
+
     try:
         return pkg_version("generate-startercode")
     except PackageNotFoundError:

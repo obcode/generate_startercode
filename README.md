@@ -42,6 +42,7 @@ Die Skripte koennen aus dem neuesten GitHub Release-Tag geladen werden (statt vo
 
 ```bash
 LATEST_TAG=$(curl -fsSL https://api.github.com/repos/obcode/generate_startercode/releases/latest | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
+export GENERATE_STARTERCODE_VERSION="${LATEST_TAG#v}"
 
 curl -fsSL "https://raw.githubusercontent.com/obcode/generate_startercode/${LATEST_TAG}/transform.py" -o /tmp/transform.py
 curl -fsSL "https://raw.githubusercontent.com/obcode/generate_startercode/${LATEST_TAG}/sync_issue.py" -o /tmp/sync_issue.py
@@ -59,11 +60,12 @@ sync-issue:
   stage: sync
   image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/python:3.12-bookworm
   script:
+    - set -eu
     - pip install "python-gitlab[graphql]" --quiet
-    - |
-      set -eu
-      LATEST_TAG=$(curl -fsSL https://api.github.com/repos/obcode/generate_startercode/releases/latest | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
-      curl -fsSL "https://raw.githubusercontent.com/obcode/generate_startercode/${LATEST_TAG}/sync_issue.py" -o /tmp/sync_issue.py
+    - LATEST_TAG=$(curl -fsSL https://api.github.com/repos/obcode/generate_startercode/releases/latest | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
+    - export GENERATE_STARTERCODE_VERSION="${LATEST_TAG#v}"
+    - echo "[sync-issue] Using release ${LATEST_TAG}"
+    - curl -fsSL "https://raw.githubusercontent.com/obcode/generate_startercode/${LATEST_TAG}/sync_issue.py" -o /tmp/sync_issue.py
     - python /tmp/sync_issue.py
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
@@ -77,22 +79,20 @@ publish-branches:
   stage: publish
   image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/python:3.12-bookworm
   before_script:
+    - set -eu
     - pip install pyyaml --quiet
     - git config user.email "ci@gitlab"
     - git config user.name "CI"
     - git remote set-url origin "https://oauth2:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
   script:
-    - |
-      set -eu
-      echo "[publish-branches] Download transform.py from latest release"
-      LATEST_TAG=$(curl -fsSL https://api.github.com/repos/obcode/generate_startercode/releases/latest | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
-      curl -fsSL "https://raw.githubusercontent.com/obcode/generate_startercode/${LATEST_TAG}/transform.py" -o /tmp/transform.py
-
-      echo "[publish-branches] Run target=solution"
-      python /tmp/transform.py --target solution --repo-root "$CI_PROJECT_DIR" --config .gitlab/ci/config.yml --no-skip-ci
-
-      echo "[publish-branches] Run target=startercode"
-      python /tmp/transform.py --target startercode --repo-root "$CI_PROJECT_DIR" --config .gitlab/ci/config.yml --no-skip-ci
+    - LATEST_TAG=$(curl -fsSL https://api.github.com/repos/obcode/generate_startercode/releases/latest | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
+    - export GENERATE_STARTERCODE_VERSION="${LATEST_TAG#v}"
+    - echo "[publish-branches] Download transform.py from release ${LATEST_TAG}"
+    - curl -fsSL "https://raw.githubusercontent.com/obcode/generate_startercode/${LATEST_TAG}/transform.py" -o /tmp/transform.py
+    - echo "[publish-branches] Run target=solution"
+    - python /tmp/transform.py --target solution --repo-root "$CI_PROJECT_DIR" --config .gitlab/ci/config.yml --no-skip-ci
+    - echo "[publish-branches] Run target=startercode"
+    - python /tmp/transform.py --target startercode --repo-root "$CI_PROJECT_DIR" --config .gitlab/ci/config.yml --no-skip-ci
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       changes:
@@ -104,7 +104,7 @@ publish-branches:
         - .gitlab-ci.yml
 ```
 
-Hinweis: Dafuer muss mindestens ein GitHub Release vorhanden sein. Falls noch kein Release existiert, initial einmalig gegen einen festen Tag laden (zum Beispiel v0.1.0) oder kurzzeitig gegen main.
+Hinweis: Dafuer muss mindestens ein GitHub Release vorhanden sein. Die zusaetzliche Umgebungsvariable GENERATE_STARTERCODE_VERSION sorgt dafuer, dass das heruntergeladene Einzel-Skript auch ohne lokales pyproject die richtige Release-Version anzeigt. Falls noch kein Release existiert, initial einmalig gegen einen festen Tag laden (zum Beispiel v1.0.0) oder kurzzeitig gegen main.
 
 ## GitHub Actions
 
