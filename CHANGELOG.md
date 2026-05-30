@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.7.0 (2026-05-30)
+
+### Features
+
+- Improve error handling and logging for post-process commands
+  ([`fc1626c`](https://github.com/obcode/generate_startercode/commit/fc1626c7b45897b3cc16506c9c4d654af162b592))
+
+
 ## v1.6.0 (2026-05-30)
 
 ### Features

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "generate-startercode"
-version = "1.6.0"
+version = "1.7.0"
 description = "Generate startercode and solution branches from a shared main branch."
 readme = "README.md"
 requires-python = ">=3.12"
