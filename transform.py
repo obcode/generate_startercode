@@ -60,6 +60,7 @@ __version__ = _resolve_version()
 
 RX_BEGIN = re.compile(r"^(\s*)(?:#|//)\s*SOLUTION_BEGIN(?:\s+(.+?))?\s*$")
 RX_END = re.compile(r"^\s*(?:#|//)\s*SOLUTION_END\s*$")
+RX_IMPORT = re.compile(r"^\s*(?:import\s+\S+|from\s+\S+\s+import\s+.+)$")
 
 TEXT_SUFFIXES = {
     ".py",
@@ -97,6 +98,18 @@ def git_tracked_files(repo_root: Path) -> list[Path]:
 
 
 def transform_source(text: str, target: str) -> str:
+    def _is_blank(line: str) -> bool:
+        return line.strip() == ""
+
+    def _is_import(line: str) -> bool:
+        return bool(RX_IMPORT.match(line.rstrip("\n")))
+
+    def _last_nonblank(lines: list[str]) -> str | None:
+        for line in reversed(lines):
+            if not _is_blank(line):
+                return line
+        return None
+
     lines = text.splitlines(keepends=True)
     out: list[str] = []
     i = 0
@@ -114,6 +127,18 @@ def transform_source(text: str, target: str) -> str:
                 i += 1  # SOLUTION_END überspringen
 
             if target == "solution":
+                # Leading/trailing marker padding should not leak into solution output.
+                while block and _is_blank(block[0]):
+                    block.pop(0)
+                while block and _is_blank(block[-1]):
+                    block.pop()
+
+                if block and _is_import(block[0]):
+                    prev_nonblank = _last_nonblank(out)
+                    if prev_nonblank is not None and _is_import(prev_nonblank):
+                        while out and _is_blank(out[-1]):
+                            out.pop()
+
                 out.extend(block)  # Inhalt behalten, Marker entfernt
             else:  # startercode
                 if replacement is not None:

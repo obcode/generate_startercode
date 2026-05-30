@@ -54,3 +54,23 @@ def test_removed_path_matching() -> None:
     assert _is_removed(Path("Aufgabenstellung/Task1.md"), {"Aufgabenstellung"})
     assert _is_removed(Path(".gitlab/ci/config.yml"), {".gitlab/ci"})
     assert not _is_removed(Path("src/main.py"), {"Aufgabenstellung"})
+
+
+def test_solution_import_block_does_not_leave_blank_separator() -> None:
+    src = """\
+from typing import TypeVar
+
+from blatt_06.bst import BinarySearchTree, Comparable
+
+# SOLUTION_BEGIN
+from blatt_06.tree_node import TreeNode
+
+# SOLUTION_END
+"""
+
+    out = transform_source(src, "solution")
+
+    assert (
+        "from blatt_06.bst import BinarySearchTree, Comparable\n"
+        "from blatt_06.tree_node import TreeNode\n" in out
+    )
