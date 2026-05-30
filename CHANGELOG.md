@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.5.0 (2026-05-30)
+
+### Features
+
+- Add support for optional post-process commands in generated branches
+  ([`4d43617`](https://github.com/obcode/generate_startercode/commit/4d43617c946be32915aea9e1eb5da7cd6c27f631))
+
+
 ## v1.4.0 (2026-05-30)
 
 
