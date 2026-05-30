@@ -155,28 +155,47 @@ def transform_source(text: str, target: str) -> str:
 
 
 def apply_patch_files(patch_cfg: dict, root: Path) -> None:
+    if not patch_cfg:
+        print("[patch_files] keine Patches konfiguriert")
+        return
     for rel_path, patches in patch_cfg.items():
         fpath = root / rel_path
         if not fpath.exists():
+            print(f"[patch_files] {rel_path}: Datei nicht gefunden, uebersprungen")
             continue
         text = fpath.read_text(encoding="utf-8")
         for pattern in patches.get("remove_line_containing", []):
+            before = text.count("\n")
             text = (
                 "\n".join(line for line in text.splitlines() if pattern not in line)
                 + "\n"
             )
+            removed = before - text.count("\n")
+            print(
+                f"[patch_files] {rel_path}: remove_line_containing {pattern!r} → {removed} Zeile(n) entfernt"
+            )
         fpath.write_text(text, encoding="utf-8")
+        print(f"[patch_files] {rel_path}: gespeichert")
 
 
 def apply_postprocess_commands(commands: list[str], root: Path) -> None:
     """Führt optionale Post-Process-Kommandos im generierten Tree aus."""
-    for command in commands:
-        subprocess.run(
+    print(f"[postprocess] {len(commands)} Kommando(s) werden ausgefuehrt in: {root}")
+    for i, command in enumerate(commands, 1):
+        print(f"[postprocess] {i}/{len(commands)}: {command}")
+        result = subprocess.run(
             command,
             cwd=root,
             shell=True,
             check=True,
+            capture_output=True,
+            text=True,
         )
+        if result.stdout:
+            print(f"[postprocess] stdout: {result.stdout.rstrip()}")
+        if result.stderr:
+            print(f"[postprocess] stderr: {result.stderr.rstrip()}")
+        print(f"[postprocess] {i}/{len(commands)}: exit code {result.returncode}")
 
 
 def _normalize_rel_path(path: str) -> str:
@@ -240,19 +259,31 @@ def build(target: str, cfg: dict, skip_ci: bool, repo_root: Path) -> None:
     remove_paths = set(tcfg.get("remove_paths", []))
     postprocess_commands = tcfg.get("postprocess_commands", [])
 
+    print(f"[build] target={target}")
+    print(f"[build] remove_paths={sorted(remove_paths) or '(keine)'}")
+    if postprocess_commands:
+        print(f"[build] postprocess_commands={postprocess_commands}")
+    else:
+        print("[build] postprocess_commands: (keine)")
+
     # Nur git-tracked Dateien transformieren – gitignorierte Verzeichnisse
     # (.uv-cache, .venv, __pycache__ etc.) werden automatisch ausgelassen.
     tracked = git_tracked_files(repo_root)
+    print(f"[build] {len(tracked)} git-tracked Datei(en) gefunden")
 
     # tmp-Verzeichnis AUSSERHALB des Repos → kein rekursives rglob-Problem
     tmp = Path(tempfile.mkdtemp(prefix=f"transform_{target}_"))
+    print(f"[build] tmp-Verzeichnis: {tmp}")
     try:
+        copied = 0
         for fpath in tracked:
             rel = fpath.relative_to(repo_root)
             # .gitlab/ci selbst nicht in den Branch kopieren
             if rel.parts[0:2] == (".gitlab", "ci"):
+                print(f"[build] uebersprungen (.gitlab/ci): {rel}")
                 continue
             if _is_removed(rel, remove_paths):
+                print(f"[build] entfernt (remove_paths): {rel}")
                 continue
             dest = tmp / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -261,11 +292,16 @@ def build(target: str, cfg: dict, skip_ci: bool, repo_root: Path) -> None:
                 dest.write_text(transform_source(text, target), encoding="utf-8")
             else:
                 shutil.copy2(fpath, dest)
+            copied += 1
 
+        print(f"[build] {copied} Datei(en) in tmp kopiert/transformiert")
         apply_patch_files(tcfg.get("patch_files", {}), tmp)
         if postprocess_commands:
             apply_postprocess_commands(postprocess_commands, tmp)
+        else:
+            print("[build] postprocess: keine Kommandos konfiguriert, uebersprungen")
 
+        print("[build] klone Repo fuer Branch-Erstellung...")
         repo_tmp = _prepare_publish_repo(target, repo_root)
         try:
             orphan = f"_gen_{target}"
@@ -317,10 +353,12 @@ def build(target: str, cfg: dict, skip_ci: bool, repo_root: Path) -> None:
                 cwd=repo_tmp,
                 check=True,
             )
+            print(f"[build] Branch '{target}' erfolgreich gepusht")
         finally:
             shutil.rmtree(repo_tmp, ignore_errors=True)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+    print(f"[build] Fertig: target={target}")
 
 
 def main() -> None:

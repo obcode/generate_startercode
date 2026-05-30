@@ -106,33 +106,87 @@ publish-branches:
 
 Hinweis: Dafuer muss mindestens ein GitHub Release vorhanden sein. Die zusaetzliche Umgebungsvariable GENERATE_STARTERCODE_VERSION sorgt dafuer, dass das heruntergeladene Einzel-Skript auch ohne lokales pyproject die richtige Release-Version anzeigt. Falls noch kein Release existiert, initial einmalig gegen einen festen Tag laden (zum Beispiel v1.0.0) oder kurzzeitig gegen main.
 
-### Stabiler Lint/Format in generierten Branches
+## Konfiguration: .gitlab/ci/config.yml
 
-Wenn in solution/startercode nach Marker-Entfernung noch Import- oder Format-Differenzen auftreten, kannst du pro Target Post-Process-Kommandos ausfuehren lassen. Diese laufen im generierten Tree, bevor der Branch committed wird.
+Die Datei `.gitlab/ci/config.yml` steuert, was pro Target (solution/startercode) in den generierten Branch uebernommen wird. Code-Transformationen (SOLUTION_BEGIN/END-Marker) sind direkt im Quellcode definiert – hier werden nur Pfad-Entfernungen, Datei-Patches und Post-Process-Kommandos konfiguriert.
 
-Beispiel in `.gitlab/ci/config.yml`:
+### Vollstaendiges Beispiel
 
 ```yaml
+# .gitlab/ci/config.yml
+
 solution:
+  remove_paths:
+    - Aufgabenstellung
+    - .gitlab/ci
+  patch_files:
+    .gitlab-ci.yml:
+      remove_line_containing:
+        - ".gitlab/ci/teacher.yml"
+        - "include:"
   postprocess_commands:
     - uvx ruff check --select I --fix .
     - uvx ruff format .
 
 startercode:
+  remove_paths:
+    - Aufgabenstellung
+    - .gitlab/ci
+  patch_files:
+    .gitlab-ci.yml:
+      remove_line_containing:
+        - ".gitlab/ci/teacher.yml"
+        - "include:"
   postprocess_commands:
     - uvx ruff check --select I --fix .
     - uvx ruff format .
 ```
 
-Fuer Go-Projekte:
+### remove_paths
+
+Liste von Pfaden (Dateien oder Verzeichnisse), die im generierten Branch komplett entfernt werden. Pfade sind relativ zum Repository-Root.
+
+```yaml
+solution:
+  remove_paths:
+    - Aufgabenstellung        # ganzes Verzeichnis
+    - .gitlab/ci              # Unterverzeichnis
+    - src/secret_tests.py     # einzelne Datei
+```
+
+### patch_files
+
+Ermoeglicht es, einzelne Dateien im generierten Branch zeilenweise zu veraendern. Aktuell unterstuetzte Operation: `remove_line_containing` – entfernt alle Zeilen, die den angegebenen Teilstring enthalten.
+
+```yaml
+solution:
+  patch_files:
+    .gitlab-ci.yml:
+      remove_line_containing:
+        - ".gitlab/ci/teacher.yml"   # entfernt jede Zeile, die diesen String enthaelt
+        - "include:"
+    README.md:
+      remove_line_containing:
+        - "SOLUTION_ONLY"
+```
+
+### postprocess_commands
+
+Shell-Kommandos, die nach allen anderen Transformationen im generierten Tree ausgefuehrt werden, bevor der Branch committed wird. Nuetzlich, um Formatter oder Linter nach der Marker-Entfernung auszufuehren.
+
+**Python/Ruff:**
 
 ```yaml
 solution:
   postprocess_commands:
-    - find . -name "*.go" -exec goimports -w {} +
-    - gofmt -w .
+    - uvx ruff check --select I --fix .
+    - uvx ruff format .
+```
 
-startercode:
+**Go:**
+
+```yaml
+solution:
   postprocess_commands:
     - find . -name "*.go" -exec goimports -w {} +
     - gofmt -w .
