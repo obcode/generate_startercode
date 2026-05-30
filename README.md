@@ -116,17 +116,14 @@ Fuehrt bei Push auf main und bei Pull Requests aus:
 
 - pre-commit auf allen Dateien
 - pytest Testsuite
+- Semantic Release Dry-Run bei Pull Requests (`--print`)
+- Semantic Release auf main, aber nur wenn pre-commit und Tests erfolgreich sind
 
 ### Release Workflow
 
 Datei: .github/workflows/release.yml
 
-Fuehrt bei Push auf main aus:
-
-- Semantic Release via python-semantic-release
-- bestimmt Version aus Conventional Commits
-- erstellt Git-Tag und GitHub Release
-- schreibt die neue Version nach pyproject.toml
+Optionaler manueller Workflow (`workflow_dispatch`) fuer Release-Experimente.
 
 ## Versionierung ohne harte Einzelwerte
 

@@ -4,14 +4,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 on:
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
-    branches:
-      - main
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -37,34 +30,3 @@ jobs:
 
       - name: Dry-run semantic-release
         run: uv run semantic-release version --print
-
-  semantic-release:
-    name: semantic-release
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v8.1.0
-        with:
-          python-version: '3.12'
-
-      - name: Sync dependencies
-        run: uv sync --extra dev
-
-      - name: Configure git author
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Run semantic-release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: uv run semantic-release version
