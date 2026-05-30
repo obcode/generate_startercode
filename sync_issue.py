@@ -37,6 +37,7 @@ print("=" * 70, flush=True)
 
 gq = gitlab.GraphQL(GITLAB_URL, token=os.environ["GITLAB_TOKEN"])
 dbg("GraphQL-Client initialisiert")
+dbg(f"python-gitlab version: {gitlab.__version__}")
 
 GET_WORK_ITEM_TYPES = """
 query GetWorkItemTypes($projectPath: ID!) {
