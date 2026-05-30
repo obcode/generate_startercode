@@ -4,13 +4,38 @@ on:
   push:
     branches:
       - main
+  pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  semantic-release-dry-run:
+    name: semantic-release (dry-run)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.12'
+
+      - name: Sync dependencies
+        run: uv sync --extra dev
+
+      - name: Dry-run semantic-release
+        run: uv run semantic-release version --print
+
   semantic-release:
     name: semantic-release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

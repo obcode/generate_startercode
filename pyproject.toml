@@ -36,9 +36,6 @@ commit_parser = "conventional"
 changelog_file = "CHANGELOG.md"
 upload_to_vcs_release = true
 commit_message = "chore(release): v{version} [skip ci]"
+commit_author = "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
 major_on_zero = false
 build_command = "echo 'No build artifacts configured'"
-
-[tool.semantic_release.commit_author]
-name = "github-actions[bot]"
-email = "41898282+github-actions[bot]@users.noreply.github.com"
