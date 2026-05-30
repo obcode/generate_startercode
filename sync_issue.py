@@ -1,19 +1,37 @@
 #!/usr/bin/env python3
-__version__ = "1.2.0"
 """Erstellt oder aktualisiert die Aufgaben-Work-Items im aktuellen Projekt.
 
 - Ein Work Item vom Typ "Issue" mit Titel "Aufgabenstellung"
-  aus Aufgabenstellung/Aufgabe.md
+    aus Aufgabenstellung/Aufgabe.md
 - Für jede Datei Aufgabenstellung/TaskN.md ein Work Item vom Typ
-  "Task" mit Titel "Aufgabe N", als Child-Item unter "Aufgabenstellung".
+    "Task" mit Titel "Aufgabe N", als Child-Item unter "Aufgabenstellung".
 """
 
 import os
 import re
-import sys
+import tomllib
+from importlib.metadata import PackageNotFoundError, version as pkg_version
+from pathlib import Path
 from typing import Any
 
 import gitlab  # type: ignore
+
+
+def _resolve_version() -> str:
+    """Liest die Version aus installierten Metadaten oder pyproject.toml."""
+    try:
+        return pkg_version("generate-startercode")
+    except PackageNotFoundError:
+        pass
+
+    pyproject = Path(__file__).resolve().parent / "pyproject.toml"
+    if pyproject.exists():
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        return str(data.get("project", {}).get("version", "0.0.0"))
+    return "0.0.0"
+
+
+__version__ = _resolve_version()
 
 ISSUE_TITLE = "Aufgabenstellung"
 BASE_DIR = "Aufgabenstellung"
@@ -168,7 +186,7 @@ def find_work_item_by_title(title: str, issue_type: str) -> dict[str, Any] | Non
     )
     project = data.get("project")
     if not project or not project.get("workItems"):
-        dbg(f"  -> Kein Ergebnis (project oder workItems fehlen in Antwort)")
+        dbg("  -> Kein Ergebnis (project oder workItems fehlen in Antwort)")
         return None
 
     nodes = project["workItems"]["nodes"]
@@ -184,7 +202,7 @@ def find_work_item_by_title(title: str, issue_type: str) -> dict[str, Any] | Non
     if matches:
         dbg(f"  -> Gefunden: iid=#{matches[0]['iid']} id={matches[0]['id']}")
     else:
-        dbg(f"  -> Nicht gefunden")
+        dbg("  -> Nicht gefunden")
     return matches[0] if matches else None
 
 
@@ -299,10 +317,13 @@ if existing_main:
     updated = update_work_item_description(
         existing_main["id"], ISSUE_TITLE, main_description
     )
-    print(f"✓ Work Item '{ISSUE_TITLE}' (ISSUE) #{updated['iid']} aktualisiert", flush=True)
+    print(
+        f"✓ Work Item '{ISSUE_TITLE}' (ISSUE) #{updated['iid']} aktualisiert",
+        flush=True,
+    )
     main_work_item_id = updated["id"]
 else:
-    dbg(f"Kein vorhandenes Issue gefunden, wird neu erstellt")
+    dbg("Kein vorhandenes Issue gefunden, wird neu erstellt")
     created = create_work_item(ISSUE_TYPE_GID, ISSUE_TITLE, main_description)
     print(f"✓ Work Item '{ISSUE_TITLE}' (ISSUE) #{created['iid']} erstellt", flush=True)
     main_work_item_id = created["id"]
@@ -318,7 +339,11 @@ if not os.path.isdir(BASE_DIR):
     print(f"WARNUNG: Verzeichnis '{BASE_DIR}' nicht gefunden, keine Tasks.", flush=True)
 else:
     all_files = sorted(os.listdir(BASE_DIR))
-    task_files = [f for f in all_files if f.lower().startswith("task") and f.lower().endswith(".md")]
+    task_files = [
+        f
+        for f in all_files
+        if f.lower().startswith("task") and f.lower().endswith(".md")
+    ]
     other_files = [f for f in all_files if f not in task_files]
     dbg(f"Dateien in '{BASE_DIR}': {all_files}")
     dbg(f"  -> Task-Dateien ({len(task_files)}): {task_files}")
@@ -341,13 +366,18 @@ else:
         existing_task = find_work_item_by_title(task_title, "TASK")
 
         if existing_task:
-            dbg(f"  Vorhandener Task gefunden (iid=#{existing_task['iid']}), wird aktualisiert")
+            dbg(
+                f"  Vorhandener Task gefunden (iid=#{existing_task['iid']}), wird aktualisiert"
+            )
             updated_task = update_work_item_description(
                 existing_task["id"], task_title, task_description
             )
-            print(f"  ✓ Task '{task_title}' #{updated_task['iid']} aktualisiert", flush=True)
+            print(
+                f"  ✓ Task '{task_title}' #{updated_task['iid']} aktualisiert",
+                flush=True,
+            )
         else:
-            dbg(f"  Kein vorhandener Task gefunden, wird neu erstellt")
+            dbg("  Kein vorhandener Task gefunden, wird neu erstellt")
             new_task = create_child_task(
                 TASK_TYPE_GID, task_title, task_description, main_work_item_id
             )

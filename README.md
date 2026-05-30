@@ -1,46 +1,81 @@
 # generate_startercode
 
-Automatische Erzeugung von **Startercode** und **Solution**-Branches aus einem gemeinsamen `main`-Branch für GitLab CI/CD.
+Automatische Erzeugung von Startercode- und Solution-Branches aus einem gemeinsamen main-Branch.
 
-## Zweck
+Das Repository ist jetzt als uv-Projekt aufgebaut, enthält Tests und nutzt GitHub Actions fuer pre-commit, Tests und automatische Releases mit Semantic Release.
 
-Bei der Betreuung von Programmierblättern möchte man:
+## Installation (uv)
 
-1. **Einen Branch mit Musterlösung** (`solution`) – mit vollständigem Code
-2. **Einen Branch mit Startcode** (`startercode`) – mit Lücken/Platzhaltern für Studierende
+1. uv installieren: https://docs.astral.sh/uv/
+2. Abhaengigkeiten installieren:
 
-Dieses Projekt enthält zwei Python-Scripts, die diese Branches **automatisch aus `main` erzeugen**:
+```bash
+uv sync --extra dev
+```
 
-- `transform.py`: Code-Transformation (Marker → Lücken/Platzhalter)
-- `sync_issue.py`: Synchronisiert GitLab-Issues aus einer Markdown-Datei
+3. Optional pre-commit Hooks installieren:
 
----
+```bash
+uv run pre-commit install --install-hooks
+```
 
-## Quickstart
+## Lokale Nutzung
 
-### 1. In deinem GitLab-Repo
+### transform.py
 
-Integriere die Scripts über GitLab CI in die Datei `.gitlab/ci/teacher.yml`:
+```bash
+uv run python transform.py --target solution --repo-root /pfad/zum/repo
+uv run python transform.py --target startercode --repo-root /pfad/zum/repo
+```
+
+### sync_issue.py
+
+```bash
+uv run python sync_issue.py
+```
+
+Hinweis: Fuer sync_issue.py werden die GitLab-Umgebungsvariablen erwartet, insbesondere GITLAB_TOKEN, CI_SERVER_URL und CI_PROJECT_PATH.
+
+## Neueste Release-Version herunterladen
+
+Die Skripte koennen aus dem neuesten GitHub Release-Tag geladen werden (statt von main):
+
+```bash
+LATEST_TAG=$(curl -fsSL https://api.github.com/repos/obcode/generate_startercode/releases/latest | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
+
+curl -fsSL "https://raw.githubusercontent.com/obcode/generate_startercode/${LATEST_TAG}/transform.py" -o /tmp/transform.py
+curl -fsSL "https://raw.githubusercontent.com/obcode/generate_startercode/${LATEST_TAG}/sync_issue.py" -o /tmp/sync_issue.py
+```
+
+## Ersatz fuer bestehende GitLab CI Nutzung
+
+Wenn du bisher in deinem GitLab-Projekt direkt von main geladen hast, ersetze das durch einen Download aus dem neuesten GitHub Release-Tag.
+
+Die folgende .gitlab-ci Konfiguration ist der direkte Ersatz fuer deinen bisherigen Flow:
 
 ```yaml
-# .gitlab/ci/teacher.yml
 # ── Issue syncen ──────────────────────────────────────────────
 sync-issue:
   stage: sync
-  image: python:3.12-bookworm
+  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/python:3.12-bookworm
   script:
     - pip install "python-gitlab[graphql]" --quiet
-    - curl -s https://github.com/obcode/generate_startercode/raw/refs/heads/main/sync_issue.py -o /tmp/sync_issue.py
+    - |
+      set -eu
+      LATEST_TAG=$(curl -fsSL https://api.github.com/repos/obcode/generate_startercode/releases/latest | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
+      curl -fsSL "https://raw.githubusercontent.com/obcode/generate_startercode/${LATEST_TAG}/sync_issue.py" -o /tmp/sync_issue.py
     - python /tmp/sync_issue.py
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       changes:
         - Aufgabenstellung/*
+        - .gitlab/ci/teacher.yml
+        - .gitlab-ci.yml
 
 # ── Branches generieren ───────────────────────────────────────
 publish-branches:
   stage: publish
-  image: python:3.12-bookworm
+  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/python:3.12-bookworm
   before_script:
     - pip install pyyaml --quiet
     - git config user.email "ci@gitlab"
@@ -48,282 +83,71 @@ publish-branches:
     - git remote set-url origin "https://oauth2:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
   script:
     - |
-      curl -s https://github.com/obcode/generate_startercode/raw/refs/heads/main/transform.py -o /tmp/transform.py
-      for TARGET in solution startercode; do
-        python /tmp/transform.py --target "$TARGET" --repo-root "$CI_PROJECT_DIR"
-        # Optional eigene Config-Datei verwenden:
-        # python /tmp/transform.py --target "$TARGET" --repo-root "$CI_PROJECT_DIR" --config .gitlab/ci/config.yml
-        # Optional ohne [skip ci] in der Commit-Message:
-        # python /tmp/transform.py --target "$TARGET" --repo-root "$CI_PROJECT_DIR" --no-skip-ci
-      done
+      set -eu
+      echo "[publish-branches] Download transform.py from latest release"
+      LATEST_TAG=$(curl -fsSL https://api.github.com/repos/obcode/generate_startercode/releases/latest | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
+      curl -fsSL "https://raw.githubusercontent.com/obcode/generate_startercode/${LATEST_TAG}/transform.py" -o /tmp/transform.py
+
+      echo "[publish-branches] Run target=solution"
+      python /tmp/transform.py --target solution --repo-root "$CI_PROJECT_DIR" --config .gitlab/ci/config.yml --no-skip-ci
+
+      echo "[publish-branches] Run target=startercode"
+      python /tmp/transform.py --target startercode --repo-root "$CI_PROJECT_DIR" --config .gitlab/ci/config.yml --no-skip-ci
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       changes:
-        - "src/**"
-        - "tests/**"
+        - "src/**/*.py"
+        - "tests/**/*.py"
+        - "src/**/*.go"
+        - .gitlab/ci/config.yml
+        - .gitlab/ci/teacher.yml
+        - .gitlab-ci.yml
 ```
 
-### 1.1 Include in `.gitlab-ci.yml`
+Hinweis: Dafuer muss mindestens ein GitHub Release vorhanden sein. Falls noch kein Release existiert, initial einmalig gegen einen festen Tag laden (zum Beispiel v0.1.0) oder kurzzeitig gegen main.
 
-Damit `teacher.yml` überhaupt ausgeführt wird, muss es in deiner `.gitlab-ci.yml` eingebunden sein:
+## GitHub Actions
 
-```yaml
-include:
-  - local: ".gitlab/ci/teacher.yml"
-```
+### CI Workflow
 
-Hinweis: In den generierten Branches (`solution`/`startercode`) wird diese Include-Zeile durch `config.yml` wieder entfernt.
+Datei: .github/workflows/ci.yml
 
-### 2. Konfigurationsdatei
+Fuehrt bei Push auf main und bei Pull Requests aus:
 
-Erstelle `.gitlab/ci/config.yml` im selben Verzeichnis:
+- pre-commit auf allen Dateien
+- pytest Testsuite
 
-```yaml
-# .gitlab/ci/config.yml
-solution:
-  remove_paths:
-    - Aufgabenstellung
-    - .gitlab/ci
-  patch_files:
-    .gitlab-ci.yml:
-      remove_line_containing:
-        - "include:"
-        - ".gitlab/ci/teacher.yml"
+### Release Workflow
 
-startercode:
-  remove_paths:
-    - Aufgabenstellung
-    - .gitlab/ci
-  patch_files:
-    .gitlab-ci.yml:
-      remove_line_containing:
-        - "include:"
-        - ".gitlab/ci/teacher.yml"
-```
+Datei: .github/workflows/release.yml
 
-Optional kannst du den Config-Pfad auch explizit beim Aufruf setzen.
-Relative Config-Pfade werden gegen das angegebene Repo-Root aufgelöst
-(Default für `--repo-root`: aktuelles Arbeitsverzeichnis):
+Fuehrt bei Push auf main aus:
+
+- Semantic Release via python-semantic-release
+- bestimmt Version aus Conventional Commits
+- erstellt Git-Tag und GitHub Release
+- schreibt die neue Version nach pyproject.toml
+
+## Versionierung ohne harte Einzelwerte
+
+Die Skripte lesen ihre Version nicht mehr aus einem manuell gepflegten, festen Wert.
+Stattdessen wird die Version aus den Paket-Metadaten bzw. aus pyproject.toml aufgeloest.
+Die Version in pyproject.toml wird durch Semantic Release gepflegt.
+
+## Tests
+
+Die Tests liegen unter tests/ und koennen lokal mit uv ausgefuehrt werden:
 
 ```bash
-python /tmp/transform.py --target startercode --repo-root /pfad/zum/repo --config .gitlab/ci/config.yml
+uv run pytest
 ```
 
-### 3. Marker im Code
+## Pre-commit
 
-Nutze Marker in deinem Quellcode, um festzulegen, was in `startercode` erscheint:
+Die bestehende Datei .pre-commit-config.yaml bleibt aktiv und wird in CI ausgefuehrt.
 
-```python
-def aufgabe(x: float) -> float:
-    """Berechnet etwas."""
-    # SOLUTION_BEGIN raise NotImplementedError
-    return x * 2
-    # SOLUTION_END
+Manuell ausfuehren:
+
+```bash
+uv run pre-commit run --all-files
 ```
-
-- **`solution`**: Code bleibt, Marker-Kommentare werden entfernt
-- **`startercode`**: Code wird durch `raise NotImplementedError` ersetzt
-
-### 4. Issues und Task-Hierarchie aus Markdown
-
-Erstelle `Aufgabenstellung/Aufgabe.md`:
-
-```markdown
-# Aufgabenstellung
-
-Implementiere eine Funktion, die ...
-```
-
-`sync_issue.py` erzeugt/aktualisiert daraus das Haupt-Work-Item **"Aufgabenstellung"** (Typ: Issue).
-
-Zusätzlich kannst du Task-Dateien anlegen:
-
-- `Aufgabenstellung/Task1.md`
-- `Aufgabenstellung/Task2.md`
-- ...
-
-Für jede `TaskN.md` wird ein Work-Item **"Aufgabe N"** (Typ: Task) erzeugt oder aktualisiert und als **Child** unter das Haupt-Issue gehängt.
-
----
-
-## Wie es funktioniert
-
-### `transform.py`
-
-**Input:** Ein Git-Repo (beliebige Sprachen) mit Marker-Kommentaren
-**Output:** Zwei neue Branches (`solution`, `startercode`) mit transformiertem Code
-
-Unterstützte Marker:
-- `# SOLUTION_BEGIN` / `# SOLUTION_END` (Python)
-- `// SOLUTION_BEGIN` / `// SOLUTION_END` (Go, Rust, JS, …)
-
-Optionales Replacement:
-- `# SOLUTION_BEGIN raise NotImplementedError` → startercode-Version wird durch den Text nach `BEGIN` ersetzt
-
-### `sync_issue.py`
-
-Liest `Aufgabenstellung/Aufgabe.md` und erzeugt/aktualisiert einen GitLab-Issue mit dem Inhalt.
-
-Zusätzlich scannt das Script `Aufgabenstellung/TaskN.md`:
-
-- Titel wird aus der Dateinummer gebildet: `Task3.md` -> `Aufgabe 3`
-- Typ ist `Task`
-- Der Task wird als Child unter dem Issue `Aufgabenstellung` verknüpft
-
-Erfordert eine CI-Variable `GITLAB_TOKEN` mit Scope `api`.
-
----
-
-## Marker-Syntax
-
-### Beispiel 1: Block komplett entfernen
-
-```python
-# Imports, die Studierende selbst schreiben sollen
-# SOLUTION_BEGIN
-import numpy as np
-from helper import calculate
-# SOLUTION_END
-
-# Diese Zeile bleibt in allen Branches
-from dataclasses import dataclass
-```
-
-**Ergebnis:**
-- **solution**: Alle Zeilen vorhanden, `SOLUTION_BEGIN/END` entfernt
-- **startercode**: nur `from dataclasses import dataclass` bleibt
-
-### Beispiel 2: Platzhalter einsetzen
-
-```python
-def quicksort(arr):
-    """Sortiert ein Array."""
-    # SOLUTION_BEGIN raise NotImplementedError
-    if len(arr) <= 1:
-        return arr
-    pivot = arr[0]
-    left = [x for x in arr[1:] if x < pivot]
-    right = [x for x in arr[1:] if x >= pivot]
-    return quicksort(left) + [pivot] + quicksort(right)
-    # SOLUTION_END
-```
-
-**Ergebnis:**
-- **solution**:
-  ```python
-  def quicksort(arr):
-      """Sortiert ein Array."""
-      if len(arr) <= 1:
-          return arr
-      pivot = arr[0]
-      ...
-  ```
-- **startercode**:
-  ```python
-  def quicksort(arr):
-      """Sortiert ein Array."""
-      raise NotImplementedError
-  ```
-
-### Wichtig
-
-- Marker dürfen **nicht verschachtelt** sein
-- Replacement muss auf der **gleichen Zeile** wie `SOLUTION_BEGIN` stehen
-- Führende Leerzeichen sind erlaubt (automatisch gemacht)
-
----
-
-## Konfiguration: `.gitlab/ci/config.yml`
-
-Auf **Pfad-Ebene** definieren, was entfernt/gepatcht werden soll:
-
-```yaml
-solution:
-  remove_paths:
-    - Aufgabenstellung          # Keine Aufgabe im Solution-Branch
-    - .gitlab/ci                # Keine Lehrer-CI sichtbar
-    - AUTHORING-WORKFLOW.md     # Nur intern relevant
-  patch_files:
-    .gitlab-ci.yml:
-      remove_line_containing:
-        - ".gitlab/ci/teacher.yml"
-        - "include:"
-
-startercode:
-  # Identisch zu solution – nur unterschiedlich bei Bedarf
-  remove_paths:
-    - Aufgabenstellung
-    - .gitlab/ci
-    - AUTHORING-WORKFLOW.md
-  patch_files:
-    .gitlab-ci.yml:
-      remove_line_containing:
-        - ".gitlab/ci/teacher.yml"
-        - "include:"
-```
-
-**Anpassung:** Nur ändern, wenn sich deine Repo-Struktur ändert. Code-Transformationen laufen über Marker im Quellcode.
-
----
-
-## Einmaliges Setup
-
-### 1. GitLab Access Token
-
-1. GitLab → **Profile** → **Access Tokens**
-2. Name: z.B. `CI_TOKEN`
-3. Scope: `api` (schließt `write_repository` mit ein)
-4. Ablauf: optional
-5. Token kopieren
-
-### 2. CI-Variable im Projekt
-
-1. GitLab Projekt → **Settings → CI/CD → Variables**
-2. **Add variable:**
-   - Key: `GITLAB_TOKEN`
-   - Value: Dein Token
-   - ☑ **Protected** (Token läuft nur auf `main`)
-   - ☑ **Masked** (Token erscheint nicht in Logs)
-
----
-
-## Fehlerbehebung
-
-| Problem | Ursache | Lösung |
-|---|---|---|
-| Block bleibt im startercode | Marker-Syntax falsch | `# SOLUTION_BEGIN` prüfen – kein Typo, Leerzeichen vor `#` OK |
-| `publish-branches` schlägt fehl | `GITLAB_TOKEN` fehlt oder falscher Scope | Token mit Scope `api` als Protected+Masked Variable setzen |
-| Zu viele Leerzeilen in Branches | `transform.py` kollabiert >3 Leerzeilen automatisch | Normales Verhalten – Dateien bleiben lesbar |
-| Replacement wird ignoriert | Syntax falsch | `# SOLUTION_BEGIN raise NotImplementedError` – keine `:` nach `BEGIN` |
-| Leeres `include:` in CI | `config.yml` entfernt nur eine Zeile | Beide `remove_line_containing`-Einträge hinzufügen |
-
----
-
-## Verwendung in anderen Projekten
-
-Diese Scripts sind **sprachenunabhängig** – sie funktionieren mit:
-
-- Python (`.py`)
-- Go (`.go`)
-- Rust (`.rs`)
-- JavaScript/TypeScript (`.js`, `.ts`)
-- Java (`.java`)
-- C/C++ (`.c`, `.cpp`, `.h`)
-- und mehr (TextSuffixes in `transform.py`)
-
-**Einfach anpassen:**
-- Marker-Kommentare in der Sprache deines Projekts verwenden
-- `.gitlab/ci/config.yml` auf deine Repo-Struktur abstimmen
-- `transform.py` und `sync_issue.py` via curl laden
-
----
-
-## Lizenz
-
-Frei verfügbar. Nutze und modifiziere wie nötig.
-
----
-
-## Kontakt / Feedback
-
-Issues und PRs willkommen!

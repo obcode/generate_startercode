@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
-__version__ = "1.2.0"
-"""
-Generiert solution- und startercode-Branches aus main.
+"""Generiert solution- und startercode-Branches aus main.
 
 Verwendung:
-  python .gitlab/ci/transform.py --target solution
-  python .gitlab/ci/transform.py --target startercode
-    python .gitlab/ci/transform.py --target startercode --config .gitlab/ci/config.yml
-    python /tmp/transform.py --target startercode --repo-root /pfad/zum/repo
+    python .gitlab/ci/transform.py --target solution
+    python .gitlab/ci/transform.py --target startercode
+        python .gitlab/ci/transform.py --target startercode --config .gitlab/ci/config.yml
+        python /tmp/transform.py --target startercode --repo-root /pfad/zum/repo
 
 Marker im Quellcode
 -------------------
-  # SOLUTION_BEGIN
-  <Block>
-  # SOLUTION_END
-      → solution:    Block-Inhalt bleibt, Marker-Zeilen werden entfernt
-      → startercode: Gesamter Block (inkl. Marker) wird entfernt
+    # SOLUTION_BEGIN
+    <Block>
+    # SOLUTION_END
+            → solution:    Block-Inhalt bleibt, Marker-Zeilen werden entfernt
+            → startercode: Gesamter Block (inkl. Marker) wird entfernt
 
-  # SOLUTION_BEGIN raise NotImplementedError
-  <Block>
-  # SOLUTION_END
-      → solution:    Block-Inhalt bleibt, Marker-Zeilen werden entfernt
-      → startercode: Block wird durch die angegebene Replacement-Zeile ersetzt
+    # SOLUTION_BEGIN raise NotImplementedError
+    <Block>
+    # SOLUTION_END
+            → solution:    Block-Inhalt bleibt, Marker-Zeilen werden entfernt
+            → startercode: Block wird durch die angegebene Replacement-Zeile ersetzt
 
 Unterstützte Kommentar-Präfixe: # (Python) und // (Go, Rust, …)
 """
@@ -31,9 +29,26 @@ import re
 import shutil
 import subprocess
 import tempfile
+import tomllib
+from importlib.metadata import PackageNotFoundError, version as pkg_version
 from pathlib import Path
 
-import yaml  # type: ignore
+
+def _resolve_version() -> str:
+    """Liest die Version aus installierten Metadaten oder pyproject.toml."""
+    try:
+        return pkg_version("generate-startercode")
+    except PackageNotFoundError:
+        pass
+
+    pyproject = Path(__file__).resolve().parent / "pyproject.toml"
+    if pyproject.exists():
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        return str(data.get("project", {}).get("version", "0.0.0"))
+    return "0.0.0"
+
+
+__version__ = _resolve_version()
 
 RX_BEGIN = re.compile(r"^(\s*)(?:#|//)\s*SOLUTION_BEGIN(?:\s+(.+?))?\s*$")
 RX_END = re.compile(r"^\s*(?:#|//)\s*SOLUTION_END\s*$")
@@ -262,10 +277,14 @@ def build(target: str, cfg: dict, skip_ci: bool, repo_root: Path) -> None:
 
 
 def main() -> None:
+    import yaml  # type: ignore
+
     parser = argparse.ArgumentParser(
         description="Generiert solution/startercode-Branches."
     )
-    parser.add_argument("--version", action="version", version=f"transform.py {__version__}")
+    parser.add_argument(
+        "--version", action="version", version=f"transform.py {__version__}"
+    )
     parser.add_argument("--target", choices=["solution", "startercode"], required=True)
     parser.add_argument(
         "--repo-root",
