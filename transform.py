@@ -149,8 +149,8 @@ def transform_source(text: str, target: str) -> str:
             i += 1
     result = "".join(out)
     result = re.sub(
-        r"\n{4,}", "\n\n\n", result
-    )  # max. 3 aufeinanderfolgende Leerzeilen
+        r"\n{3,}", "\n\n", result
+    )  # max. 2 aufeinanderfolgende Leerzeilen (ruff-friendly)
     return result.lstrip("\n")
 
 

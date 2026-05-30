@@ -74,3 +74,21 @@ from blatt_06.tree_node import TreeNode
         "from blatt_06.bst import BinarySearchTree, Comparable\n"
         "from blatt_06.tree_node import TreeNode\n" in out
     )
+
+
+def test_startercode_does_not_leave_three_consecutive_blank_lines() -> None:
+    src = """\
+def foo():
+    return 1
+
+# SOLUTION_BEGIN
+print("hidden")
+# SOLUTION_END
+
+def bar():
+    return 2
+"""
+
+    out = transform_source(src, "startercode")
+
+    assert "\n\n\n" not in out
