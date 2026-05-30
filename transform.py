@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+__version__ = "1.2.0"
 """
 Generiert solution- und startercode-Branches aus main.
 
@@ -264,6 +265,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generiert solution/startercode-Branches."
     )
+    parser.add_argument("--version", action="version", version=f"transform.py {__version__}")
     parser.add_argument("--target", choices=["solution", "startercode"], required=True)
     parser.add_argument(
         "--repo-root",
@@ -282,6 +284,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    print(f"transform.py v{__version__} gestartet  target={args.target}", flush=True)
     repo_root = Path(args.repo_root).resolve()
     config_path = Path(args.config)
     if not config_path.is_absolute():

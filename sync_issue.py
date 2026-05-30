@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+__version__ = "1.2.0"
 """Erstellt oder aktualisiert die Aufgaben-Work-Items im aktuellen Projekt.
 
 - Ein Work Item vom Typ "Issue" mit Titel "Aufgabenstellung"
@@ -28,7 +29,7 @@ def dbg(msg: str) -> None:
 
 
 print("=" * 70, flush=True)
-print(f"sync_issue.py gestartet", flush=True)
+print(f"sync_issue.py v{__version__} gestartet", flush=True)
 print(f"  GITLAB_URL   : {GITLAB_URL}", flush=True)
 print(f"  PROJECT_PATH : {PROJECT_PATH}", flush=True)
 print(f"  BASE_DIR     : {os.path.abspath(BASE_DIR)}", flush=True)
