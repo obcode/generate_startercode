@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.6.0 (2026-05-30)
+
+### Features
+
+- Enhance patch file handling and add post-process command logging
+  ([`0d86a15`](https://github.com/obcode/generate_startercode/commit/0d86a15a9321a039f5af1e3f2b1b95808b8ecd67))
+
+
 ## v1.5.0 (2026-05-30)
 
 ### Features
