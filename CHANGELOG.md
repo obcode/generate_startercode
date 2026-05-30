@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.8.0 (2026-05-30)
+
+### Features
+
+- Translate README and sync_issue.py to English; update transform.py documentation
+  ([`311e4ef`](https://github.com/obcode/generate_startercode/commit/311e4efbef0dca37f5289eaf8d7a760af841652c))
+
+
 ## v1.7.0 (2026-05-30)
 
 ### Features
