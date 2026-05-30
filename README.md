@@ -106,6 +106,40 @@ publish-branches:
 
 Hinweis: Dafuer muss mindestens ein GitHub Release vorhanden sein. Die zusaetzliche Umgebungsvariable GENERATE_STARTERCODE_VERSION sorgt dafuer, dass das heruntergeladene Einzel-Skript auch ohne lokales pyproject die richtige Release-Version anzeigt. Falls noch kein Release existiert, initial einmalig gegen einen festen Tag laden (zum Beispiel v1.0.0) oder kurzzeitig gegen main.
 
+### Stabiler Lint/Format in generierten Branches
+
+Wenn in solution/startercode nach Marker-Entfernung noch Import- oder Format-Differenzen auftreten, kannst du pro Target Post-Process-Kommandos ausfuehren lassen. Diese laufen im generierten Tree, bevor der Branch committed wird.
+
+Beispiel in `.gitlab/ci/config.yml`:
+
+```yaml
+solution:
+  postprocess_commands:
+    - uvx ruff check --select I --fix .
+    - uvx ruff format .
+
+startercode:
+  postprocess_commands:
+    - uvx ruff check --select I --fix .
+    - uvx ruff format .
+```
+
+Fuer Go-Projekte:
+
+```yaml
+solution:
+  postprocess_commands:
+    - find . -name "*.go" -exec goimports -w {} +
+    - gofmt -w .
+
+startercode:
+  postprocess_commands:
+    - find . -name "*.go" -exec goimports -w {} +
+    - gofmt -w .
+```
+
+Hinweis: `goimports` benoetigt `go install golang.org/x/tools/cmd/goimports@latest` in der CI-Umgebung. Falls nur Formatierung benoetigt wird, reicht `gofmt`.
+
 ## GitHub Actions
 
 ### CI Workflow

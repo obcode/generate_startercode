@@ -168,6 +168,17 @@ def apply_patch_files(patch_cfg: dict, root: Path) -> None:
         fpath.write_text(text, encoding="utf-8")
 
 
+def apply_postprocess_commands(commands: list[str], root: Path) -> None:
+    """Führt optionale Post-Process-Kommandos im generierten Tree aus."""
+    for command in commands:
+        subprocess.run(
+            command,
+            cwd=root,
+            shell=True,
+            check=True,
+        )
+
+
 def _normalize_rel_path(path: str) -> str:
     """Normalisiert relative Pfade aus der Config für konsistente Vergleiche."""
     return Path(path.strip().rstrip("/")).as_posix()
@@ -227,6 +238,7 @@ def _prepare_publish_repo(target: str, repo_root: Path) -> Path:
 def build(target: str, cfg: dict, skip_ci: bool, repo_root: Path) -> None:
     tcfg = cfg.get(target, {})
     remove_paths = set(tcfg.get("remove_paths", []))
+    postprocess_commands = tcfg.get("postprocess_commands", [])
 
     # Nur git-tracked Dateien transformieren – gitignorierte Verzeichnisse
     # (.uv-cache, .venv, __pycache__ etc.) werden automatisch ausgelassen.
@@ -251,6 +263,8 @@ def build(target: str, cfg: dict, skip_ci: bool, repo_root: Path) -> None:
                 shutil.copy2(fpath, dest)
 
         apply_patch_files(tcfg.get("patch_files", {}), tmp)
+        if postprocess_commands:
+            apply_postprocess_commands(postprocess_commands, tmp)
 
         repo_tmp = _prepare_publish_repo(target, repo_root)
         try:
