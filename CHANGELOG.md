@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-05-30)
+
+### Features
+
+- Enhance transform_source to handle import blocks and update version to 1.2.0
+  ([`064890e`](https://github.com/obcode/generate_startercode/commit/064890e530a88265cd74af89e6d5709cdc376ef8))
+
+- Update build command to use 'uv lock' and add assets configuration
+  ([`706b739`](https://github.com/obcode/generate_startercode/commit/706b7392820cd805745e435d890de6b566f6d94a))
+
+
 ## v1.2.0 (2026-05-30)
 
 ### Features
