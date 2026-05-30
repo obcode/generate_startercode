@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v1.2.0 (2026-05-30)
+
+### Features
+
+- Add semantic-release workflows for push and pull request events, update README and version to
+  1.1.0
+  ([`addc268`](https://github.com/obcode/generate_startercode/commit/addc2687d7a12b7c4bddfe0b06db1d31baaa9695))
+
+- Update CI and release workflows to use latest action versions and ensure environment variable
+  consistency
+  ([`74040f9`](https://github.com/obcode/generate_startercode/commit/74040f9e28b29bc03480de46fcc623a94477c7f4))
+
+- Update setup-uv action to version 8.1.0 in CI and release workflows
+  ([`8aa5715`](https://github.com/obcode/generate_startercode/commit/8aa571503f4ab4f6e9d994ab68b42428241d5cb2))
+
+
 ## v1.1.0 (2026-05-30)
 
 ### Features
