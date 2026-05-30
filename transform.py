@@ -183,14 +183,27 @@ def apply_postprocess_commands(commands: list[str], root: Path) -> None:
     print(f"[postprocess] {len(commands)} Kommando(s) werden ausgefuehrt in: {root}")
     for i, command in enumerate(commands, 1):
         print(f"[postprocess] {i}/{len(commands)}: {command}")
-        result = subprocess.run(
-            command,
-            cwd=root,
-            shell=True,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+        try:
+            result = subprocess.run(
+                command,
+                cwd=root,
+                shell=True,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            if exc.stdout:
+                print(f"[postprocess] stdout: {exc.stdout.rstrip()}")
+            if exc.stderr:
+                print(f"[postprocess] stderr: {exc.stderr.rstrip()}")
+            print(f"[postprocess] {i}/{len(commands)}: exit code {exc.returncode}")
+            if exc.returncode == 127:
+                print(
+                    "[postprocess] Hinweis: Exit 127 bedeutet meist 'Kommando nicht gefunden'. "
+                    "Bitte benoetigte Tools im CI-Image bereitstellen oder vorab installieren."
+                )
+            raise
         if result.stdout:
             print(f"[postprocess] stdout: {result.stdout.rstrip()}")
         if result.stderr:
@@ -393,7 +406,16 @@ def main() -> None:
     config_path = Path(args.config)
     if not config_path.is_absolute():
         config_path = repo_root / config_path
+    print(f"[main] config_path={config_path} (exists={config_path.exists()})")
     cfg = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    print(f"[main] cfg keys: {list(cfg.keys()) if cfg else '(leer/None)'}")
+    tcfg = cfg.get(args.target, {}) if cfg else {}
+    print(
+        f"[main] cfg[{args.target!r}] keys: {list(tcfg.keys()) if tcfg else '(leer)'}"
+    )
+    print(
+        f"[main] postprocess_commands: {tcfg.get('postprocess_commands', '(nicht vorhanden)')}"
+    )
     build(args.target, cfg, skip_ci=not args.no_skip_ci, repo_root=repo_root)
     print(f"✓ Branch '{args.target}' erfolgreich erzeugt und gepusht.")
 
