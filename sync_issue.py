@@ -20,10 +20,20 @@ MAIN_FILE = os.path.join(BASE_DIR, "Aufgabe.md")
 GITLAB_URL = os.environ["CI_SERVER_URL"]
 PROJECT_PATH = os.environ["CI_PROJECT_PATH"]
 
-ISSUE_TYPE_GID = "gid://gitlab/WorkItems::Type/1"
-TASK_TYPE_GID = "gid://gitlab/WorkItems::Type/5"
-
 gq = gitlab.GraphQL(GITLAB_URL, token=os.environ["GITLAB_TOKEN"])
+
+GET_WORK_ITEM_TYPES = """
+query GetWorkItemTypes($projectPath: ID!) {
+  project(fullPath: $projectPath) {
+    workItemTypes {
+      nodes {
+        id
+        name
+      }
+    }
+  }
+}
+"""
 
 FIND_WORK_ITEM_BY_TITLE = """
 query FindWorkItemByTitle($projectPath: ID!, $search: String!, $types: [IssueType!]) {
@@ -104,6 +114,19 @@ mutation UpdateWorkItemDescription($id: WorkItemID!, $description: String!) {
 """
 
 
+def get_work_item_type_gids() -> dict[str, str]:
+    """Holt die Work-Item-Typ-GIDs aus dem Projekt (Name -> GID)."""
+    data = gq.execute(
+        GET_WORK_ITEM_TYPES,
+        variable_values={"projectPath": PROJECT_PATH},
+    )
+    project = data.get("project")
+    if not project or not project.get("workItemTypes"):
+        raise RuntimeError("Konnte Work-Item-Typen nicht abrufen")
+    nodes = project["workItemTypes"]["nodes"]
+    return {n["name"].upper(): n["id"] for n in nodes}
+
+
 def find_work_item_by_title(title: str, issue_type: str) -> dict[str, Any] | None:
     """Sucht ein Work Item in diesem Projekt anhand des Titels und Typs.
 
@@ -151,11 +174,13 @@ def create_work_item(type_gid: str, title: str, description: str) -> dict[str, A
     return result["workItem"]
 
 
-def create_child_task(title: str, description: str, parent_id: str) -> dict[str, Any]:
+def create_child_task(
+    type_gid: str, title: str, description: str, parent_id: str
+) -> dict[str, Any]:
     """Erzeugt einen neuen Task als Child-Work-Item unter parent_id."""
     variables = {
         "projectPath": PROJECT_PATH,
-        "typeId": TASK_TYPE_GID,
+        "typeId": type_gid,
         "title": title,
         "description": description,
         "parentId": parent_id,
@@ -191,6 +216,19 @@ def update_work_item_description(
         )
     return result["workItem"]
 
+
+# ---------------------------------------------------------------------------
+# Work-Item-Typen dynamisch ermitteln
+# ---------------------------------------------------------------------------
+
+_type_gids = get_work_item_type_gids()
+ISSUE_TYPE_GID = _type_gids.get("ISSUE")
+TASK_TYPE_GID = _type_gids.get("TASK")
+
+if not ISSUE_TYPE_GID:
+    raise RuntimeError("Work-Item-Typ 'Issue' nicht im Projekt gefunden")
+if not TASK_TYPE_GID:
+    raise RuntimeError("Work-Item-Typ 'Task' nicht im Projekt gefunden")
 
 # ---------------------------------------------------------------------------
 # Haupt-Work-Item "Aufgabenstellung" upserten
@@ -240,7 +278,7 @@ if os.path.isdir(BASE_DIR):
             print(f"✓ Task '{task_title}' {updated_task['iid']} aktualisiert")
         else:
             new_task = create_child_task(
-                task_title, task_description, main_work_item_id
+                TASK_TYPE_GID, task_title, task_description, main_work_item_id
             )
             print(
                 f"✓ Task '{task_title}' {new_task['iid']} erstellt"
