@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
-"""Generiert solution- und startercode-Branches aus main.
+"""Generate solution and startercode branches from main.
 
-Verwendung:
+Usage:
     python .gitlab/ci/transform.py --target solution
     python .gitlab/ci/transform.py --target startercode
         python .gitlab/ci/transform.py --target startercode --config .gitlab/ci/config.yml
-        python /tmp/transform.py --target startercode --repo-root /pfad/zum/repo
+    python /tmp/transform.py --target startercode --repo-root /path/to/repo
 
-Marker im Quellcode
--------------------
+Markers in source files
+-----------------------
     # SOLUTION_BEGIN
     <Block>
     # SOLUTION_END
-            → solution:    Block-Inhalt bleibt, Marker-Zeilen werden entfernt
-            → startercode: Gesamter Block (inkl. Marker) wird entfernt
+        -> solution:    Keep block contents, remove marker lines
+        -> startercode: Remove the entire block (including markers)
 
     # SOLUTION_BEGIN raise NotImplementedError
     <Block>
     # SOLUTION_END
-            → solution:    Block-Inhalt bleibt, Marker-Zeilen werden entfernt
-            → startercode: Block wird durch die angegebene Replacement-Zeile ersetzt
+        -> solution:    Keep block contents, remove marker lines
+        -> startercode: Replace block with the provided replacement line
 
-Unterstützte Kommentar-Präfixe: # (Python) und // (Go, Rust, …)
+Supported comment prefixes: # (Python) and // (Go, Rust, ...)
 """
 
 import argparse
@@ -39,7 +39,7 @@ VERSION_ENV_VAR = "GENERATE_STARTERCODE_VERSION"
 
 
 def _resolve_version() -> str:
-    """Liest die Version aus CI, Paket-Metadaten oder pyproject.toml."""
+    """Resolve version from CI env var, package metadata, or pyproject.toml."""
     env_version = os.environ.get(VERSION_ENV_VAR, "").strip()
     if env_version:
         return env_version.removeprefix("v")
@@ -87,7 +87,7 @@ TEXT_SUFFIXES = {
 
 
 def git_tracked_files(repo_root: Path) -> list[Path]:
-    """Gibt alle von Git getrackten Dateien zurück (keine gitignorierten Dateien)."""
+    """Return all git-tracked files (excluding gitignored files)."""
     result = subprocess.run(
         ["git", "ls-files", "--cached"],
         capture_output=True,
@@ -117,14 +117,14 @@ def transform_source(text: str, target: str) -> str:
         m = RX_BEGIN.match(lines[i])
         if m:
             indent = m.group(1)
-            replacement = m.group(2)  # None wenn kein Replacement angegeben
+            replacement = m.group(2)  # None if no replacement is provided
             block: list[str] = []
             i += 1
             while i < len(lines) and not RX_END.match(lines[i]):
                 block.append(lines[i])
                 i += 1
             if i < len(lines):
-                i += 1  # SOLUTION_END überspringen
+                i += 1  # skip SOLUTION_END
 
             if target == "solution":
                 # Leading/trailing marker padding should not leak into solution output.
@@ -139,29 +139,29 @@ def transform_source(text: str, target: str) -> str:
                         while out and _is_blank(out[-1]):
                             out.pop()
 
-                out.extend(block)  # Inhalt behalten, Marker entfernt
+                out.extend(block)  # keep block contents, strip markers
             else:  # startercode
                 if replacement is not None:
                     out.append(indent + replacement + "\n")
-                # else: Block komplett entfernen
+                # else: remove full block
         else:
             out.append(lines[i])
             i += 1
     result = "".join(out)
     result = re.sub(
         r"\n{3,}", "\n\n", result
-    )  # max. 2 aufeinanderfolgende Leerzeilen (ruff-friendly)
+    )  # max 2 consecutive blank lines (ruff-friendly)
     return result.lstrip("\n")
 
 
 def apply_patch_files(patch_cfg: dict, root: Path) -> None:
     if not patch_cfg:
-        print("[patch_files] keine Patches konfiguriert")
+        print("[patch_files] no patches configured")
         return
     for rel_path, patches in patch_cfg.items():
         fpath = root / rel_path
         if not fpath.exists():
-            print(f"[patch_files] {rel_path}: Datei nicht gefunden, uebersprungen")
+            print(f"[patch_files] {rel_path}: file not found, skipped")
             continue
         text = fpath.read_text(encoding="utf-8")
         for pattern in patches.get("remove_line_containing", []):
@@ -172,15 +172,15 @@ def apply_patch_files(patch_cfg: dict, root: Path) -> None:
             )
             removed = before - text.count("\n")
             print(
-                f"[patch_files] {rel_path}: remove_line_containing {pattern!r} → {removed} Zeile(n) entfernt"
+                f"[patch_files] {rel_path}: remove_line_containing {pattern!r} -> {removed} line(s) removed"
             )
         fpath.write_text(text, encoding="utf-8")
-        print(f"[patch_files] {rel_path}: gespeichert")
+        print(f"[patch_files] {rel_path}: saved")
 
 
 def apply_postprocess_commands(commands: list[str], root: Path) -> None:
-    """Führt optionale Post-Process-Kommandos im generierten Tree aus."""
-    print(f"[postprocess] {len(commands)} Kommando(s) werden ausgefuehrt in: {root}")
+    """Run optional postprocess commands inside the generated tree."""
+    print(f"[postprocess] running {len(commands)} command(s) in: {root}")
     for i, command in enumerate(commands, 1):
         print(f"[postprocess] {i}/{len(commands)}: {command}")
         try:
@@ -200,8 +200,8 @@ def apply_postprocess_commands(commands: list[str], root: Path) -> None:
             print(f"[postprocess] {i}/{len(commands)}: exit code {exc.returncode}")
             if exc.returncode == 127:
                 print(
-                    "[postprocess] Hinweis: Exit 127 bedeutet meist 'Kommando nicht gefunden'. "
-                    "Bitte benoetigte Tools im CI-Image bereitstellen oder vorab installieren."
+                    "[postprocess] Hint: exit 127 usually means 'command not found'. "
+                    "Install required tools in the CI image or before running transform.py."
                 )
             raise
         if result.stdout:
@@ -212,7 +212,7 @@ def apply_postprocess_commands(commands: list[str], root: Path) -> None:
 
 
 def _normalize_rel_path(path: str) -> str:
-    """Normalisiert relative Pfade aus der Config für konsistente Vergleiche."""
+    """Normalize relative config paths for consistent comparisons."""
     return Path(path.strip().rstrip("/")).as_posix()
 
 
@@ -273,30 +273,30 @@ def build(target: str, cfg: dict, skip_ci: bool, repo_root: Path) -> None:
     postprocess_commands = tcfg.get("postprocess_commands", [])
 
     print(f"[build] target={target}")
-    print(f"[build] remove_paths={sorted(remove_paths) or '(keine)'}")
+    print(f"[build] remove_paths={sorted(remove_paths) or '(none)'}")
     if postprocess_commands:
         print(f"[build] postprocess_commands={postprocess_commands}")
     else:
-        print("[build] postprocess_commands: (keine)")
+        print("[build] postprocess_commands: (none)")
 
-    # Nur git-tracked Dateien transformieren – gitignorierte Verzeichnisse
-    # (.uv-cache, .venv, __pycache__ etc.) werden automatisch ausgelassen.
+    # Transform only git-tracked files; gitignored directories
+    # (.uv-cache, .venv, __pycache__, etc.) are excluded automatically.
     tracked = git_tracked_files(repo_root)
-    print(f"[build] {len(tracked)} git-tracked Datei(en) gefunden")
+    print(f"[build] {len(tracked)} git-tracked file(s) found")
 
-    # tmp-Verzeichnis AUSSERHALB des Repos → kein rekursives rglob-Problem
+    # Create tmp directory outside repo to avoid recursive rglob issues.
     tmp = Path(tempfile.mkdtemp(prefix=f"transform_{target}_"))
-    print(f"[build] tmp-Verzeichnis: {tmp}")
+    print(f"[build] tmp directory: {tmp}")
     try:
         copied = 0
         for fpath in tracked:
             rel = fpath.relative_to(repo_root)
-            # .gitlab/ci selbst nicht in den Branch kopieren
+            # Do not copy .gitlab/ci itself into generated branches.
             if rel.parts[0:2] == (".gitlab", "ci"):
-                print(f"[build] uebersprungen (.gitlab/ci): {rel}")
+                print(f"[build] skipped (.gitlab/ci): {rel}")
                 continue
             if _is_removed(rel, remove_paths):
-                print(f"[build] entfernt (remove_paths): {rel}")
+                print(f"[build] removed (remove_paths): {rel}")
                 continue
             dest = tmp / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -307,14 +307,14 @@ def build(target: str, cfg: dict, skip_ci: bool, repo_root: Path) -> None:
                 shutil.copy2(fpath, dest)
             copied += 1
 
-        print(f"[build] {copied} Datei(en) in tmp kopiert/transformiert")
+        print(f"[build] {copied} file(s) copied/transformed into tmp")
         apply_patch_files(tcfg.get("patch_files", {}), tmp)
         if postprocess_commands:
             apply_postprocess_commands(postprocess_commands, tmp)
         else:
-            print("[build] postprocess: keine Kommandos konfiguriert, uebersprungen")
+            print("[build] postprocess: no commands configured, skipped")
 
-        print("[build] klone Repo fuer Branch-Erstellung...")
+        print("[build] cloning repository for branch generation...")
         repo_tmp = _prepare_publish_repo(target, repo_root)
         try:
             orphan = f"_gen_{target}"
@@ -323,15 +323,15 @@ def build(target: str, cfg: dict, skip_ci: bool, repo_root: Path) -> None:
                 cwd=repo_tmp,
                 check=True,
             )
-            # Working Tree leeren, damit ausgeschlossene Pfade
-            # nicht aus main "stehenbleiben".
+            # Clear working tree so excluded paths
+            # do not remain from main.
             subprocess.run(
                 ["git", "rm", "-rf", "."],
                 cwd=repo_tmp,
                 capture_output=True,
                 check=True,
             )
-            # Auch untracked Artefakte entfernen (z. B. aus vorherigen CI-Schritten).
+            # Also remove untracked artifacts (e.g. from previous CI steps).
             subprocess.run(
                 ["git", "clean", "-fdx"],
                 cwd=repo_tmp,
@@ -366,19 +366,19 @@ def build(target: str, cfg: dict, skip_ci: bool, repo_root: Path) -> None:
                 cwd=repo_tmp,
                 check=True,
             )
-            print(f"[build] Branch '{target}' erfolgreich gepusht")
+            print(f"[build] branch '{target}' pushed successfully")
         finally:
             shutil.rmtree(repo_tmp, ignore_errors=True)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-    print(f"[build] Fertig: target={target}")
+    print(f"[build] done: target={target}")
 
 
 def main() -> None:
     import yaml  # type: ignore
 
     parser = argparse.ArgumentParser(
-        description="Generiert solution/startercode-Branches."
+        description="Generate solution/startercode branches."
     )
     parser.add_argument(
         "--version", action="version", version=f"transform.py {__version__}"
@@ -387,37 +387,37 @@ def main() -> None:
     parser.add_argument(
         "--repo-root",
         default=str(Path.cwd()),
-        help="Pfad zum Repository-Root (Default: aktuelles Arbeitsverzeichnis).",
+        help="Path to repository root (default: current working directory).",
     )
     parser.add_argument(
         "--config",
         default=".gitlab/ci/config.yml",
-        help="Pfad zur YAML-Konfiguration (Default: .gitlab/ci/config.yml).",
+        help="Path to YAML config file (default: .gitlab/ci/config.yml).",
     )
     parser.add_argument(
         "--no-skip-ci",
         action="store_true",
-        help="Fuegt kein '[skip ci]' zur Commit-Message hinzu.",
+        help="Do not append '[skip ci]' to the commit message.",
     )
     args = parser.parse_args()
 
-    print(f"transform.py v{__version__} gestartet  target={args.target}", flush=True)
+    print(f"transform.py v{__version__} started  target={args.target}", flush=True)
     repo_root = Path(args.repo_root).resolve()
     config_path = Path(args.config)
     if not config_path.is_absolute():
         config_path = repo_root / config_path
     print(f"[main] config_path={config_path} (exists={config_path.exists()})")
     cfg = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    print(f"[main] cfg keys: {list(cfg.keys()) if cfg else '(leer/None)'}")
+    print(f"[main] cfg keys: {list(cfg.keys()) if cfg else '(empty/None)'}")
     tcfg = cfg.get(args.target, {}) if cfg else {}
     print(
-        f"[main] cfg[{args.target!r}] keys: {list(tcfg.keys()) if tcfg else '(leer)'}"
+        f"[main] cfg[{args.target!r}] keys: {list(tcfg.keys()) if tcfg else '(empty)'}"
     )
     print(
-        f"[main] postprocess_commands: {tcfg.get('postprocess_commands', '(nicht vorhanden)')}"
+        f"[main] postprocess_commands: {tcfg.get('postprocess_commands', '(not present)')}"
     )
     build(args.target, cfg, skip_ci=not args.no_skip_ci, repo_root=repo_root)
-    print(f"✓ Branch '{args.target}' erfolgreich erzeugt und gepusht.")
+    print(f"✓ Branch '{args.target}' generated and pushed successfully.")
 
 
 if __name__ == "__main__":

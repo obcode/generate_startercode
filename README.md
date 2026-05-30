@@ -1,31 +1,31 @@
 # generate_startercode
 
-Automatische Erzeugung von Startercode- und Solution-Branches aus einem gemeinsamen main-Branch.
+Automatic generation of startercode and solution branches from a shared main branch.
 
-Das Repository ist jetzt als uv-Projekt aufgebaut, enthält Tests und nutzt GitHub Actions fuer pre-commit, Tests und automatische Releases mit Semantic Release.
+This repository is now structured as a uv project, includes tests, and uses GitHub Actions for pre-commit, tests, and automatic releases with Semantic Release.
 
 ## Installation (uv)
 
-1. uv installieren: https://docs.astral.sh/uv/
-2. Abhaengigkeiten installieren:
+1. Install uv: https://docs.astral.sh/uv/
+2. Install dependencies:
 
 ```bash
 uv sync --extra dev
 ```
 
-3. Optional pre-commit Hooks installieren:
+3. Optionally install pre-commit hooks:
 
 ```bash
 uv run pre-commit install --install-hooks
 ```
 
-## Lokale Nutzung
+## Local Usage
 
 ### transform.py
 
 ```bash
-uv run python transform.py --target solution --repo-root /pfad/zum/repo
-uv run python transform.py --target startercode --repo-root /pfad/zum/repo
+uv run python transform.py --target solution --repo-root /path/to/repo
+uv run python transform.py --target startercode --repo-root /path/to/repo
 ```
 
 ### sync_issue.py
@@ -34,11 +34,11 @@ uv run python transform.py --target startercode --repo-root /pfad/zum/repo
 uv run python sync_issue.py
 ```
 
-Hinweis: Fuer sync_issue.py werden die GitLab-Umgebungsvariablen erwartet, insbesondere GITLAB_TOKEN, CI_SERVER_URL und CI_PROJECT_PATH.
+Note: sync_issue.py expects GitLab environment variables, especially GITLAB_TOKEN, CI_SERVER_URL, and CI_PROJECT_PATH.
 
-## Neueste Release-Version herunterladen
+## Download Latest Release Version
 
-Die Skripte koennen aus dem neuesten GitHub Release-Tag geladen werden (statt von main):
+You can download the scripts from the latest GitHub release tag (instead of main):
 
 ```bash
 LATEST_TAG=$(curl -fsSL https://api.github.com/repos/obcode/generate_startercode/releases/latest | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
@@ -48,14 +48,14 @@ curl -fsSL "https://raw.githubusercontent.com/obcode/generate_startercode/${LATE
 curl -fsSL "https://raw.githubusercontent.com/obcode/generate_startercode/${LATEST_TAG}/sync_issue.py" -o /tmp/sync_issue.py
 ```
 
-## Ersatz fuer bestehende GitLab CI Nutzung
+## Replacement for Existing GitLab CI Usage
 
-Wenn du bisher in deinem GitLab-Projekt direkt von main geladen hast, ersetze das durch einen Download aus dem neuesten GitHub Release-Tag.
+If your GitLab project currently downloads directly from main, replace that with a download from the latest GitHub release tag.
 
-Die folgende .gitlab-ci Konfiguration ist der direkte Ersatz fuer deinen bisherigen Flow:
+The following .gitlab-ci configuration is a direct replacement for your previous flow:
 
 ```yaml
-# ── Issue syncen ──────────────────────────────────────────────
+# -- Sync issue ------------------------------------------------
 sync-issue:
   stage: sync
   image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/python:3.12-bookworm
@@ -74,7 +74,7 @@ sync-issue:
         - .gitlab/ci/teacher.yml
         - .gitlab-ci.yml
 
-# ── Branches generieren ───────────────────────────────────────
+# -- Generate branches -----------------------------------------
 publish-branches:
   stage: publish
   image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/python:3.12-bookworm
@@ -104,13 +104,13 @@ publish-branches:
         - .gitlab-ci.yml
 ```
 
-Hinweis: Dafuer muss mindestens ein GitHub Release vorhanden sein. Die zusaetzliche Umgebungsvariable GENERATE_STARTERCODE_VERSION sorgt dafuer, dass das heruntergeladene Einzel-Skript auch ohne lokales pyproject die richtige Release-Version anzeigt. Falls noch kein Release existiert, initial einmalig gegen einen festen Tag laden (zum Beispiel v1.0.0) oder kurzzeitig gegen main.
+Note: At least one GitHub release must exist. The additional environment variable GENERATE_STARTERCODE_VERSION ensures that the downloaded standalone script reports the correct release version even without a local pyproject. If no release exists yet, initially load once from a fixed tag (for example v1.0.0) or temporarily from main.
 
-## Konfiguration: .gitlab/ci/config.yml
+## Configuration: .gitlab/ci/config.yml
 
-Die Datei `.gitlab/ci/config.yml` steuert, was pro Target (solution/startercode) in den generierten Branch uebernommen wird. Code-Transformationen (SOLUTION_BEGIN/END-Marker) sind direkt im Quellcode definiert – hier werden nur Pfad-Entfernungen, Datei-Patches und Post-Process-Kommandos konfiguriert.
+The file `.gitlab/ci/config.yml` controls what is included per target (solution/startercode) in generated branches. Code transformations (SOLUTION_BEGIN/END markers) are defined directly in source code. This config only controls path removals, file patches, and postprocess commands.
 
-### Vollstaendiges Beispiel
+### Complete Example
 
 ```yaml
 # .gitlab/ci/config.yml
@@ -144,26 +144,26 @@ startercode:
 
 ### remove_paths
 
-Liste von Pfaden (Dateien oder Verzeichnisse), die im generierten Branch komplett entfernt werden. Pfade sind relativ zum Repository-Root.
+List of paths (files or directories) that are fully removed in the generated branch. Paths are relative to the repository root.
 
 ```yaml
 solution:
   remove_paths:
-    - Aufgabenstellung        # ganzes Verzeichnis
-    - .gitlab/ci              # Unterverzeichnis
-    - src/secret_tests.py     # einzelne Datei
+    - Aufgabenstellung        # full directory
+    - .gitlab/ci              # subdirectory
+    - src/secret_tests.py     # single file
 ```
 
 ### patch_files
 
-Ermoeglicht es, einzelne Dateien im generierten Branch zeilenweise zu veraendern. Aktuell unterstuetzte Operation: `remove_line_containing` – entfernt alle Zeilen, die den angegebenen Teilstring enthalten.
+Allows line-based modifications for selected files in the generated branch. Currently supported operation: `remove_line_containing` - removes all lines containing the given substring.
 
 ```yaml
 solution:
   patch_files:
     .gitlab-ci.yml:
       remove_line_containing:
-        - ".gitlab/ci/teacher.yml"   # entfernt jede Zeile, die diesen String enthaelt
+        - ".gitlab/ci/teacher.yml"   # removes every line containing this string
         - "include:"
     README.md:
       remove_line_containing:
@@ -172,7 +172,7 @@ solution:
 
 ### postprocess_commands
 
-Shell-Kommandos, die nach allen anderen Transformationen im generierten Tree ausgefuehrt werden, bevor der Branch committed wird. Nuetzlich, um Formatter oder Linter nach der Marker-Entfernung auszufuehren.
+Shell commands executed in the generated tree after all other transformations and before committing the branch. Useful for running formatters or linters after marker removal.
 
 **Python/Ruff:**
 
@@ -192,36 +192,36 @@ solution:
     - gofmt -w .
 ```
 
-Hinweis: `goimports` benoetigt `go install golang.org/x/tools/cmd/goimports@latest` in der CI-Umgebung. Falls nur Formatierung benoetigt wird, reicht `gofmt`.
+Note: `goimports` requires `go install golang.org/x/tools/cmd/goimports@latest` in the CI environment. If you only need formatting, `gofmt` is enough.
 
 ## GitHub Actions
 
 ### CI Workflow
 
-Datei: .github/workflows/ci.yml
+File: .github/workflows/ci.yml
 
-Fuehrt bei Push auf main und bei Pull Requests aus:
+Runs on push to main and on pull requests:
 
-- pre-commit auf allen Dateien
-- pytest Testsuite
-- Semantic Release Dry-Run bei Pull Requests (`--print`)
-- Semantic Release auf main, aber nur wenn pre-commit und Tests erfolgreich sind
+- pre-commit on all files
+- pytest test suite
+- Semantic Release dry-run on pull requests (`--print`)
+- Semantic Release on main, but only if pre-commit and tests succeed
 
 ### Release Workflow
 
-Datei: .github/workflows/release.yml
+File: .github/workflows/release.yml
 
-Optionaler manueller Workflow (`workflow_dispatch`) fuer Release-Experimente.
+Optional manual workflow (`workflow_dispatch`) for release experiments.
 
-## Versionierung ohne harte Einzelwerte
+## Versioning Without Hardcoded Single Values
 
-Die Skripte lesen ihre Version nicht mehr aus einem manuell gepflegten, festen Wert.
-Stattdessen wird die Version aus den Paket-Metadaten bzw. aus pyproject.toml aufgeloest.
-Die Version in pyproject.toml wird durch Semantic Release gepflegt.
+Scripts no longer read their version from a manually maintained fixed value.
+Instead, the version is resolved from package metadata or pyproject.toml.
+The version in pyproject.toml is managed by Semantic Release.
 
 ## Tests
 
-Die Tests liegen unter tests/ und koennen lokal mit uv ausgefuehrt werden:
+Tests are located under tests/ and can be run locally with uv:
 
 ```bash
 uv run pytest
@@ -229,9 +229,9 @@ uv run pytest
 
 ## Pre-commit
 
-Die bestehende Datei .pre-commit-config.yaml bleibt aktiv und wird in CI ausgefuehrt.
+The existing .pre-commit-config.yaml remains active and is executed in CI.
 
-Manuell ausfuehren:
+Run manually:
 
 ```bash
 uv run pre-commit run --all-files
