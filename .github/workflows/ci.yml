@@ -104,4 +104,8 @@ jobs:
         run: uv sync --extra dev
 
       - name: Dry-run semantic-release
-        run: uv run semantic-release version --print
+        run: |
+          # The PR merge ref is a detached HEAD, which matches no release
+          # group. Name it main to preview the version a merge would release.
+          git checkout -B main
+          uv run semantic-release version --print
