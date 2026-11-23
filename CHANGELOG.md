@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.8.1 (2026-11-23)
+
+### Bug Fixes
+
+- **ci**: Run the PR release dry-run on a branch named main
+  ([#1](https://github.com/obcode/generate_startercode/pull/1),
+  [`9c06964`](https://github.com/obcode/generate_startercode/commit/9c06964bc1423ddf3cb8c1bdb4247346f9d5e2f4))
+
+- **deps**: Clear Dependabot security alerts
+  ([#1](https://github.com/obcode/generate_startercode/pull/1),
+  [`9c06964`](https://github.com/obcode/generate_startercode/commit/9c06964bc1423ddf3cb8c1bdb4247346f9d5e2f4))
+
+
 ## v1.8.0 (2026-05-30)
 
 ### Features
