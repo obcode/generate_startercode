@@ -31,9 +31,9 @@ import shutil
 import subprocess
 import tempfile
 import tomllib
-from importlib.metadata import PackageNotFoundError, version as pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
 from pathlib import Path
-
 
 VERSION_ENV_VAR = "GENERATE_STARTERCODE_VERSION"
 
@@ -91,6 +91,7 @@ def git_tracked_files(repo_root: Path) -> list[Path]:
     result = subprocess.run(
         ["git", "ls-files", "--cached"],
         capture_output=True,
+        check=False,
         text=True,
         cwd=repo_root,
     )
@@ -375,7 +376,7 @@ def build(target: str, cfg: dict, skip_ci: bool, repo_root: Path) -> None:
 
 
 def main() -> None:
-    import yaml  # type: ignore
+    import yaml
 
     parser = argparse.ArgumentParser(
         description="Generate solution/startercode branches."
