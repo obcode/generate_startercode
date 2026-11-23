@@ -10,12 +10,12 @@
 import os
 import re
 import tomllib
-from importlib.metadata import PackageNotFoundError, version as pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
 from pathlib import Path
 from typing import Any
 
-import gitlab  # type: ignore
-
+import gitlab
 
 VERSION_ENV_VAR = "GENERATE_STARTERCODE_VERSION"
 
